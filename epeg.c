@@ -65,6 +65,10 @@ static PHP_FUNCTION(epeg_encode);
 static PHP_FUNCTION(epeg_trim);
 static PHP_FUNCTION(epeg_close);
 
+#ifdef PHP_EPEG_ENABLE_TRANSFORM
+static PHP_FUNCTION(epeg_transform);
+#endif
+
 static PHP_METHOD(Epeg, openFile);
 static PHP_METHOD(Epeg, openBuffer);
 
@@ -293,6 +297,20 @@ ZEND_BEGIN_ARG_INFO_EX(arginfo_epeg_thumbnail_comments_enable_m, 0, 0, 0)
 	ZEND_ARG_INFO(0, onoff)
 ZEND_END_ARG_INFO()
 
+#ifdef PHP_EPEG_ENABLE_TRANSFORM
+ARG_INFO_STATIC
+ZEND_BEGIN_ARG_INFO(arginfo_epeg_transform, 0)
+	ZEND_ARG_INFO(0, image)
+	ZEND_ARG_INFO(0, transform)
+ZEND_END_ARG_INFO()
+
+ARG_INFO_STATIC
+ZEND_BEGIN_ARG_INFO(arginfo_epeg_transform_m, 0)
+	ZEND_ARG_INFO(0, transform)
+ZEND_END_ARG_INFO()
+#endif
+
+
 /* }}} */
 
 /* {{{ Class definitions */
@@ -316,6 +334,10 @@ static zend_function_entry epeg_methods[] = {
 	PHP_ME_MAPPING(enableThumbnailComments, epeg_thumbnail_comments_enable, arginfo_epeg_thumbnail_comments_enable_m,   ZEND_ACC_PUBLIC)
 	PHP_ME_MAPPING(encode,                  epeg_encode,                    arginfo_epeg__output_m,                     ZEND_ACC_PUBLIC)
 	PHP_ME_MAPPING(trim,                    epeg_trim,                      arginfo_epeg__output_m,                     ZEND_ACC_PUBLIC)
+
+#ifdef PHP_EPEG_ENABLE_TRANSFORM
+	PHP_ME_MAPPING(transform,     			epeg_transform,					arginfo_epeg_transform_m,					ZEND_ACC_PUBLIC)
+#endif
 	{ NULL, NULL, NULL }
 };
 /* }}} */
@@ -341,6 +363,9 @@ static zend_function_entry epeg_functions[] = {
 	PHP_FE(epeg_encode,                     arginfo_epeg__output)
 	PHP_FE(epeg_trim,                       arginfo_epeg__output)
 	PHP_FE(epeg_close,                      arginfo_epeg__epeg)
+#ifdef PHP_EPEG_ENABLE_TRANSFORM
+	PHP_FE(epeg_transform,                  arginfo_epeg_transform)
+#endif
 	{ NULL, NULL, NULL }
 };
 /* }}} */
@@ -384,6 +409,17 @@ static PHP_MINIT_FUNCTION(epeg)
 	PHP_EPEG_REGISTER_CONSTANT(EPEG_ARGB32);
 	PHP_EPEG_REGISTER_CONSTANT(EPEG_CMYK);
 
+#ifdef PHP_EPEG_ENABLE_TRANSFORM
+	PHP_EPEG_REGISTER_CONSTANT(EPEG_TRANSFORM_NONE);
+	PHP_EPEG_REGISTER_CONSTANT(EPEG_TRANSFORM_FLIP_H);
+	PHP_EPEG_REGISTER_CONSTANT(EPEG_TRANSFORM_FLIP_V);
+	PHP_EPEG_REGISTER_CONSTANT(EPEG_TRANSFORM_TRANSPOSE);
+	PHP_EPEG_REGISTER_CONSTANT(EPEG_TRANSFORM_TRANSVERSE);
+	PHP_EPEG_REGISTER_CONSTANT(EPEG_TRANSFORM_ROT_90);
+	PHP_EPEG_REGISTER_CONSTANT(EPEG_TRANSFORM_ROT_180);
+	PHP_EPEG_REGISTER_CONSTANT(EPEG_TRANSFORM_ROT_270);
+#endif
+
 	le_epeg = zend_register_list_destructors_ex(php_epeg_free_resource, NULL, "epeg", module_number);
 
 	INIT_CLASS_ENTRY(ce, "Epeg", epeg_methods);
@@ -404,6 +440,17 @@ static PHP_MINIT_FUNCTION(epeg)
 	PHP_EPEG_REGISTER_CLASS_CONSTANT(BGRA8);
 	PHP_EPEG_REGISTER_CLASS_CONSTANT(ARGB32);
 	PHP_EPEG_REGISTER_CLASS_CONSTANT(CMYK);
+
+#ifdef PHP_EPEG_ENABLE_TRANSFORM
+	PHP_EPEG_REGISTER_CLASS_CONSTANT(TRANSFORM_NONE);
+	PHP_EPEG_REGISTER_CLASS_CONSTANT(TRANSFORM_FLIP_H);
+	PHP_EPEG_REGISTER_CLASS_CONSTANT(TRANSFORM_FLIP_V);
+	PHP_EPEG_REGISTER_CLASS_CONSTANT(TRANSFORM_TRANSPOSE);
+	PHP_EPEG_REGISTER_CLASS_CONSTANT(TRANSFORM_TRANSVERSE);
+	PHP_EPEG_REGISTER_CLASS_CONSTANT(TRANSFORM_ROT_90);
+	PHP_EPEG_REGISTER_CLASS_CONSTANT(TRANSFORM_ROT_180);
+	PHP_EPEG_REGISTER_CLASS_CONSTANT(TRANSFORM_ROT_270);
+#endif
 
 	return SUCCESS;
 }
@@ -1467,6 +1514,54 @@ static PHP_FUNCTION(epeg_encode)
 	php_epeg_reset(im);
 }
 /* }}} epeg_encode */
+
+
+#ifdef PHP_EPEG_ENABLE_TRANSFORM
+/* {{{ proto mixed epeg_transform(resource epeg image, integer transform) */
+/**
+ * mixed epeg_transform(resource epeg image, integer transform)
+ * mixed Epeg::transform(integer transform)
+ *
+ * Apply a transform filter on an image
+ *
+ * @param	resource epeg	$image	An Epeg image handle.
+ * @param	int	$transform	The transformation to apply.
+ *							The value must be one of the following:
+ *							EPEG_TRANSFORM_NONE,       // no transformation
+ *							EPEG_TRANSFORM_FLIP_H,     // horizontal flip
+ *							EPEG_TRANSFORM_FLIP_V,     // vertical flip
+ *							EPEG_TRANSFORM_TRANSPOSE,  // transpose across UL-to-LR axis
+ *							EPEG_TRANSFORM_TRANSVERSE, // transpose across UR-to-LL axis
+ *							EPEG_TRANSFORM_ROT_90,     // 90-degree clockwise rotation
+ *							EPEG_TRANSFORM_ROT_180,    // 180-degree rotation
+ *							EPEG_TRANSFORM_ROT_270     // 270-degree clockwise (or 90 ccw)
+ * @return	void */
+static PHP_FUNCTION(epeg_transform)
+{
+	/* declaration of the resources */
+	zval *obj = getThis();
+	zval *zim = NULL;
+	php_epeg_t *im = NULL;
+
+	/* declaration of the arguments */
+	long transform = 0;
+
+	/* parse the arguments */
+	PHP_EPEG_PARSE_PARAMETERS("l", &transform);
+
+	/* check transform filter */
+	if (transform < (long)EPEG_TRANSFORM_NONE || transform > (long)EPEG_TRANSFORM_ROT_270) {
+		php_error_docref(NULL TSRMLS_CC, E_WARNING, "Invalid transformation");
+	} else {
+		epeg_transform_set(im->ptr, (Epeg_Transform)transform);
+	}
+
+	if (epeg_transform(im->ptr) != 0) {
+		php_error_docref(NULL TSRMLS_CC, E_WARNING, "Transform failed");
+	}
+}
+/* }}} epeg_transform */
+#endif
 
 /* {{{ proto mixed epeg_trim(resource epeg image[, string filename]) */
 /**
