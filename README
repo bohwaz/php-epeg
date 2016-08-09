@@ -1,29 +1,26 @@
-This is a standalone PHP extension created using CodeGen_PECL 1.0.0
+# PHP EPEG extension
 
-HACKING
-=======
+This PHP extension is using the EPEG library to provide fast JPEG
+resize.
 
-There are two ways to modify an extension created using CodeGen_PECL:
+If compiled against EPEG-transform fork by @koofr: https://github.com/bohwaz/epeg-transform
+it will also provide transformations like flip and rotate.
 
-1) you can modify the generated code as with any other PHP extension
-  
-2) you can add custom code to the CodeGen_PECL XML source and re-run pecl-gen
+Forked from https://github.com/rsky/php-epeg
 
-The 2nd approach may look a bit complicated but you have be aware that any
-manual changes to the generated code will be lost if you ever change the
-XML specs and re-run PECL-Gen. All changes done before have to be applied
-to the newly generated code again.
-Adding code snippets to the XML source itself on the other hand may be a 
-bit more complicated but this way your custom code will always be in the
-generated code no matter how often you rerun CodeGen_PECL.
+## Compiling with transform support
 
+* Compile and install koofr/epeg
+* Run: CFLAGS="-DPHP_EPEG_ENABLE_TRANSFORM=1" ./configure --with-epeg=~/git/koofr/epeg 
+* make && sudo make install
+* A new method Epeg::transform($transform), see source code for transform constants
 
 BUILDING ON UNIX etc.
 =====================
 
 To compile your new extension, you will have to execute the following steps:
 
-1.  $ ./phpize
+1.  $ phpize
 2.  $ ./configure [--with-epeg]
 3.  $ make
 [4. $ make test ] # NOTE: this doesn't work right now *)
